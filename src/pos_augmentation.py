@@ -17,6 +17,8 @@ from glob import glob
 import nltk
 from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
+from utils.dataloader import *
+from utils.utils import *
 nltk.download("omw-1.4")
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -54,7 +56,6 @@ def synonym_count(word):
 
 
 def important_augmentation(train_df, imp_tokens):
-
     nope = []
     yess = []
     syn_dict = {}
@@ -95,7 +96,7 @@ def important_augmentation(train_df, imp_tokens):
         auged_text += new_text
         auged_label += new_label
     auged_df = pd.DataFrame({"text": auged_text, "label": auged_label})
-    auged_df.to_csv("../dataset/stackoverflow/auged_train.csv", index= False)
+    auged_df.to_csv("../dataset/stackoverflow/imp_auged_train.csv", index= False)
             
 
 def make_mini_sample(train_df, dataset,sample_size):
@@ -111,7 +112,8 @@ def make_mini_sample(train_df, dataset,sample_size):
 
 
 
-def pos_augmentation(train_df):
+def pos_augmentation(train_df, pos):
+    pos_dict = {"verb": "V", "noun": "N", "adj": "J"}
     ### POS Token Replacement ###
     n = 5
     ni_aug, ni_lab = [], []
@@ -123,8 +125,8 @@ def pos_augmentation(train_df):
         text = " " + text
         tokens = word_tokenize(text)
         tagged = pos_tag(tokens)
-            
-        nouns = [[i,word[0]] for i,word in enumerate(tagged) if word[1].startswith("V")]
+        pos_filt = pos_dict[pos]
+        nouns = [[i,word[0]] for i,word in enumerate(tagged) if word[1].startswith(pos_filt)]
         possible_swaps = []
         splitted = text.split()
         for ind,swap_word in nouns:
@@ -153,10 +155,10 @@ def pos_augmentation(train_df):
     pos_removed = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
             
     pos_removed = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
-    pos_removed.to_csv("../dataset/stackoverflow/train_verb_aug.csv", index=False)
+    pos_removed.to_csv(f"../dataset/stackoverflow/train_{pos}_aug.csv", index=False)
 
 
-def run_baseline(train_df, dataset_name, text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
+def run_baseline(train_df, dataset_name, pos, text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
     device = torch.device("cuda" if torch.cuda.is_available() else cpu )
     lr = 4e-5
     max_length = 100
@@ -186,7 +188,7 @@ def run_baseline(train_df, dataset_name, text_column='text', label_column='label
     
     if not os.path.exists('../model_weights'):
         os.mkdir("../model_weights/")
-    torch.save(model, f'../model_weights/model_{dataset_name}_.pt')
+    torch.save(model, f'../model_weights/model_{dataset_name}_{pos}.pt')
 
 
 
@@ -198,7 +200,11 @@ def main():
     train_df = pd.read_csv("../dataset/stackoverflow/train.csv")[:100]
     imp_list = pd.read_csv("../dataset/stackoverflow/imp_list.csv")['tokens'].tolist()
     important_augmentation(train_df, imp_list)
-    pos_augmentation(train_df)
+    imp_df = pd.read_csv("../dataset/stackoverflow/imp_auged_train.csv")
+    run_baseline(imp_df, "stackoverflow", "imp")
+    #run_baseline()
+    for pos in ["verb", "noun", "adj"]:
+        pos_augmentation(train_df, pos)
     #run_baseline()
 
     #make_mini_sample(train_df, "stackoverflow",10)

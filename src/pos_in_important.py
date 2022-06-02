@@ -114,7 +114,8 @@ def make_important_tokens(train_df, project_name, out_dir1, out_dir2, text_colum
                 probs = list(torch.nn.functional.softmax(output.logits[0], dim=-1))
             significance.append([probs[label_ind], ins, tokenized[i]])
         significance.sort()
-        all_sig.append(significance[0][1])
+        all_sig.append(tokenizer.decode(tokenizer.convert_tokens_to_ids(significance[0][1][1:-1])))
+
         important_tokens.append(significance[0][2])
     important_df = pd.DataFrame(
         {text_column: all_sig, label_column: train_df[label_column][:100]}
@@ -188,7 +189,7 @@ def main():
     seed_everything()
     train_df = pd.read_csv("../dataset/stackoverflow/train.csv")
     #run_baseline(train_df, "stackoverflow")
-    out_dir1, out_dir2 = './imp_stackoverflow_removed.csv', '../dataset/stackoverflow/imp_list.csv'
+    out_dir1, out_dir2 = '../dataset/stackoverflow/imp_removed.csv', '../dataset/stackoverflow/imp_list.csv'
     project_name = "stackoverflow"
     make_important_tokens(train_df, project_name, out_dir1, out_dir2,)
     collate_counts(["stackoverflow"])

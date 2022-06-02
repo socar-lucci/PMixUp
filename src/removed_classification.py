@@ -42,7 +42,7 @@ def save_pos_file(train_df, pos, pos_removed, text_col, label_col, datapath):
     removed_train.to_csv(os.path.join(out_dir, "train.csv"), index=False)
 
 
-def make_pos_files(train_df, datapath, pos, text_col="text", label_col="label"):
+def make_pos_files(train_df, datapath, text_col="text", label_col="label"):
     pos_list = ["noun", "verb", "adj"]
     removed_nouns, removed_verbs, removed_adjs = [], [], []
     for i in tqdm(range(len(train_df))):
@@ -105,13 +105,27 @@ def run_baseline(train_df, dataset_name, pos,text_column='text', label_column='l
 
 
 
-def main():
-    train_df = pd.read_csv("../dataset/stackoverflow/train.csv")
-    #make_pos_files(train_df, "../dataset/stackoverflow", pos)
-    for pos in ["verb", "noun", "adj"]:
-        removed = pd.read_csv(f"../dataset/stackoverflow/POS/{pos}_removed/train.csv")
-        run_baseline(removed, "stackoverflow",pos)
+def remove_important(dataset):
+    dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
+    imp_list = pd.read_csv(f"../dataset/{dataset}/imp_removed.csv")
+    for ind in tqdm(range(len(dataframe))):
+        text = dataframe.iloc[i]
 
+
+
+
+def main():
+    dataset = "stackoverflow"
+    train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
+    print("Making POS Files!")
+    make_pos_files(train_df, f"../dataset/{dataset}")
+    for pos in ["verb", "noun", "adj"]:
+        removed = pd.read_csv(f"../dataset/{dataset}/POS/{pos}_removed/train.csv")
+        run_baseline(removed, dataset,pos)
+    
+    print("Training Important Removed!")
+    dataframe = pd.read_csv(f'../dataset/{dataset}/imp_removed.csv')
+    run_baseline(dataframe, dataset, 'imp')
 
 if __name__ == "__main__":
     main()
