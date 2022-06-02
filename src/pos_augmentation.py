@@ -102,17 +102,6 @@ def important_augmentation(train_df, imp_tokens):
     return auged_df
             
 
-def make_mini_sample(train_df, dataset,sample_size):
-    sample_texts, sample_labels = [], []
-    for key, values in tqdm(Counter(train_df['label']).items()):
-        tmp = [train_df.iloc[i]['text'] for i in range(len(train_df)) if train_df.iloc[i]['label'] == key]
-        random_texts = random.sample(tmp, sample_size)
-        sample_texts += random_texts
-        labs = [key for _ in range(sample_size)]
-        sample_labels += labs
-    new_df = pd.DataFrame({"text": sample_texts, "label": sample_labels})
-    new_df.to_csv(f"../dataset/{dataset}/train_{sample_size}.csv")
-
 
 
 def pos_augmentation(train_df, pos):

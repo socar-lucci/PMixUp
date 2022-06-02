@@ -13,7 +13,9 @@ import random
 import numpy as np
 from glob import glob
 from utils.dataloader import TextDataset, get_label_dict
-from utils.utils import get_baseline_optimizer
+from utils.utils import get_baseline_optimizer, get_pmixup_optimizer
+import torch.nn.functional as F
+from models.tmix import *
 
 
 def run_baseline(dataframe, dataset_name, feature, lr, condition = None,text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
@@ -58,10 +60,8 @@ def run_baseline(dataframe, dataset_name, feature, lr, condition = None,text_col
 
 
 
-def tmix(train_df, val_df, text_column, label_name, dataset,model_name = "bert-base-uncased",num_epochs = 30,
-                save = True, 
-                syntax = False):
-    device = torch.device("cuda")
+def run_pmixup(train_df, dataset, feature,text_column="text", label_column="label", model_name = "bert-base-uncased",num_epochs = 1):
+    device = torch.device("cuda" if torch.cuda.is_available() else cpu )
     label_dict = get_label_dict(train_df, label_column)
     
     max_length_dict = {"dbpedia" : 128,
@@ -85,59 +85,31 @@ def tmix(train_df, val_df, text_column, label_name, dataset,model_name = "bert-b
                       }
     
 
-    max_length = 400
+    max_length = 100
     batch_size = 32
     
     print(f"max_length : {max_length}, batch_Size : {batch_size}")
-    
-    if syntax:
-        train_dataset = SupDataset(train_df, label_dict, text_column, label_name, max_length)
-    else:
-        train_dataset = SDataset(train_df, label_dict, text_column, label_name, max_length)
+    train_dataset = TextDataset(train_df, label_dict, text_column, label_column, max_length)
     train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True, drop_last = True)
-    
-    val_dataset = SDataset(val_df, label_dict, text_column, label_name, max_length)
-    val_dataloader = DataLoader(val_dataset, batch_size = 64, shuffle = False, drop_last = True)
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     model = MixText(num_labels = len(label_dict), mix_option = True).cuda()
     model = nn.DataParallel(model)
-
     lr = 3e-5
-    wandb.config = {
-        "learning_rate" : lr,
-        "epochs" : num_epochs }
-    
-    
-    no_decay = ['bias', 'LayerNorm.weight']
-    no_decay = ['bias', 'LayerNorm.weight']
-
-    optimizer = AdamW(
-        [
-            {"params": model.module.bert.parameters(), "lr": 3e-5},
-            {"params": model.module.linear.parameters(), "lr": 1e-3},
-        ])
+    optimizer = get_pmixup_optimizer(model, lr)
 
 
     mix_layer_set = [7,9,12]
 
-    
-    train_criterion = SemiLoss()
-
-    criterion = nn.CrossEntropyLoss()
-
-    patience = 0
-    best_acc = 0
     for epoch in range(num_epochs):
         alpha = 16
         l = np.random.beta(alpha, alpha)
         l = max(l, 1-l)
-        print(l)
+        #print(l)
         mix_layer = np.random.choice(mix_layer_set,1)[0]
         mix_layer = mix_layer - 1
         model.train()
-        #model.zero_grad()
         epoch_loss = 0
         for i, batch in enumerate(tqdm(train_dataloader)):
             print(batch['input_ids'].size())
@@ -157,39 +129,12 @@ def tmix(train_df, val_df, text_column, label_name, dataset,model_name = "bert-b
             out_labs = torch.index_select(targets_x,dim=0, index=idx.cuda())
 
             mixed_target = l * targets_x + (1-l)*out_labs
-            #print(out_labs, mixed_target)
-            #Lx, Lu, w, Lu2, w2 = train_criterion(outputs[:batch['input_ids'].size(0)], mixed_target[:batch['input_ids'].size(0)],)
 
             Lx = -torch.mean(torch.sum(F.log_softmax(outputs, dim=1)*mixed_target.cuda(), dim=1))
-            probs_u = torch.softmax(outputs, dim=1)
-
-            Lu = F.kl_div(probs_u.log(), mixed_target, None, None, "batchmean")
-
-            #w = 1
-            #w2 = 1
-            w = 0*linear_rampup(epoch)
-
-            Lu2 = torch.mean(torch.clamp(torch.sum(-F.softmax(outputs, dim=1)* F.log_softmax(outputs, dim=1), dim=1) - 0.7, min=0))
-
             loss = Lx
-            #loss = Lx + w * Lu
-            wandb.log({"loss":loss.mean().item()})
+
             optimizer.zero_grad()
             loss.backward()
-            print(loss)
             optimizer.step()
-            #model.zero_grad()
 
-        
-        val_loss, val_acc, val_f1 = evaluate(model, val_dataloader)
-        print(val_acc)
-        wandb.log({"val_loss": val_loss, "val_acc" : val_acc, "val_f1": val_f1})
-        wandb.log({"Epoch": epoch})
-        if val_acc >= best_acc:
-            best_acc = val_acc
-            patience = 0
-        else:
-            patience += 1
-        if patience == 6:
-            break
-    wandb.finish()
+    torch.save(model, f'../model_weights/{dataset}/pmixup_model_{feature}.pt')
