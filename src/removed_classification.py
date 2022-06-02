@@ -1,3 +1,4 @@
+import argparse
 import torch
 import pandas as pd
 from transformers import BertModel, AutoTokenizer, BertForSequenceClassification
@@ -14,6 +15,7 @@ import numpy as np
 from glob import glob
 from utils.dataloader import TextDataset, get_label_dict
 from utils.utils import get_baseline_optimizer
+from utils.trainer import run_baseline
 import nltk
 from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
@@ -71,40 +73,6 @@ def make_pos_files(train_df, datapath, text_col="text", label_col="label"):
 
 
 
-def run_baseline(train_df, dataset_name, pos,text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
-    device = torch.device("cuda" if torch.cuda.is_available() else cpu )
-    lr = 4e-5
-    max_length = 100
-    batch_size = 124
-
-    label_dict = get_label_dict(train_df, label_column)
-    train_dataset = TextDataset(train_df, label_dict, text_column, label_column, max_length)
-    train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
-    model = BertForSequenceClassification.from_pretrained(model_name, num_labels = len(label_dict))
-    model = torch.nn.DataParallel(model).to(device)
-    optimizer = get_baseline_optimizer(model, lr)
-    scaler = torch.cuda.amp.GradScaler()
-    for epoch in range(num_epochs):
-        model.train()
-        model.zero_grad()
-        epoch_loss = 0
-        for i, batch in enumerate(tqdm(train_dataloader)):
-            batch['input_ids'] = batch['input_ids'].squeeze(1)
-            with torch.cuda.amp.autocast():
-                output = model(**batch)
-                loss = output['loss']        
-            epoch_loss += loss.mean().item()
-            scaler.scale(loss.mean()).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            model.zero_grad()
-    
-    if not os.path.exists(f'../model_weights/{dataset_name}'):
-        os.mkdir(f"../model_weights/{dataset_name}")
-    torch.save(model, f'../model_weights/{dataset_name}/model_{pos}_removed.pt')
-
-
-
 def remove_important(dataset):
     dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
     imp_list = pd.read_csv(f"../dataset/{dataset}/imp_removed.csv")
@@ -114,18 +82,33 @@ def remove_important(dataset):
 
 
 
-def main():
-    dataset = "stackoverflow"
-    train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
-    print("Making POS Files!")
-    make_pos_files(train_df, f"../dataset/{dataset}")
-    for pos in ["verb", "noun", "adj"]:
-        removed = pd.read_csv(f"../dataset/{dataset}/POS/{pos}_removed/train.csv")
-        run_baseline(removed, dataset,pos)
-    
-    print("Training Important Removed!")
-    dataframe = pd.read_csv(f'../dataset/{dataset}/imp_removed.csv')
-    run_baseline(dataframe, dataset, 'imp')
+def main(args):
+    print(f'----- Start Training -----')
+    for dataset in args.datasets:
+        train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
+        print("-- Making POS Files! --")
+        make_pos_files(train_df, f"../dataset/{dataset}")
+        for pos in args.pos:
+            removed = pd.read_csv(f"../dataset/{dataset}/POS/{pos}_removed/train.csv")
+            run_baseline(args, removed, dataset, feature= pos, condition = 'removed')
+
+    print(f'----- Start Evaluation -----')
+    if args.eval == True:
+        for dataset in args.datasets:
+            for pos in args.pos:
+                model = f'../model_weights/{dataset}/model_{pos}_removed.pt'
+                
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
+    parser.add_argument("--model_name", default = "bert-base-uncased")
+    parser.add_argument("--num_epochs", default = 1)
+    parser.add_argument("--lr", default = 4e-5)
+    parser.add_argument('--batch_size',  default = 128)
+    parser.add_argument('--max_length',  default = 100)
+    parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
+    parser.add_argument('--eval', default = True)
+    args = parser.parse_args()
+    main(args)

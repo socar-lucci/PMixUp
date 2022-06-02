@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import os
 from collections import Counter
@@ -65,22 +66,22 @@ def collate_counts(dataset_list):
 
     output_df = pd.DataFrame(output_dict)
     output_df = output_df.sort_values(by=['counts'], ascending = False)
-    output_df.to_csv("./outputcheck.csv", index = False)
+    if not os.path.exists("../outputs"):
+        os.mkdir("../outputs")
+    output_df.to_csv("../output/table_1.csv", index = False)
                 
 
 
 
 
-def main():
-    dataset_list = ["stackoverflow", "banking"]
-    print("--Inspecting file --")
-    collate_counts(dataset_list)
+def main(args):
+    print("----- Inspecting file -----")
+    collate_counts(datasets)
 
 
 
 if __name__ == "__main__":
-    main()
-
-
-
-# Inspect the files and 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
+    args = parser.parse_args()
+    main(args)

@@ -1,3 +1,4 @@
+import argparse
 import torch
 import pandas as pd
 from transformers import BertModel, AutoTokenizer, BertForSequenceClassification
@@ -151,29 +152,38 @@ def pos_augmentation(train_df, pos):
     return pos_auged
 
 
-def run_imp_aug(dataset):
+def run_imp_aug(args,dataset):
     dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
     imp_list = pd.read_csv(f"../dataset/{dataset}/imp_list.csv")['tokens'].tolist()
     auged_df = important_augmentation(dataframe, imp_list)
-    run_baseline(auged_df, dataset, feature = "imp", lr = 4e-5, condition = "auged")
+    run_baseline(args, auged_df, dataset, feature = "imp", condition = "auged")
 
 
-def run_pos_aug(dataset,pos):
+def run_pos_aug(args,dataset,pos):
     dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
     pos_auged = pos_augmentation(dataframe,pos)
-    run_baseline(pos_auged, dataset, feature = pos, lr = 4e-5, condition = "auged")
+    run_baseline(args, pos_auged, dataset, feature = pos, condition = "auged")
     
 
 
-def main():
-    dataset = "stackoverflow"
+def main(args):
     seed_everything()
-    run_imp_aug(dataset)
-    for pos in ["verb", "noun", "adj"]:
-        run_pos_aug(dataset, pos)
+    for dataset in args.datasets:
+        run_imp_aug(args, dataset)
+        for pos in args.pos:
+            run_pos_aug(args, dataset,pos)
 
 
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
+    parser.add_argument("--model_name", default = "bert-base-uncased")
+    parser.add_argument("--num_epochs", default = 1)
+    parser.add_argument("--lr", default = 4e-5)
+    parser.add_argument('--batch_size',  default = 128)
+    parser.add_argument('--max_length',  default = 100)
+    parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
+    args = parser.parse_args()
+    main(args)

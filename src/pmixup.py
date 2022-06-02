@@ -17,7 +17,9 @@ from transformers import AutoTokenizer
 from utils.utils import seed_everything, get_pmixup_optimizer
 from utils.trainer import run_pmixup
 from models.tmix import *
-
+import argparse
+from pos_in_important import *
+from pos_augmentation import *
 
 def make_mini_sample(dataset,sample_size):
     train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
@@ -34,22 +36,34 @@ def make_mini_sample(dataset,sample_size):
 
 
 
-def main():
+def main(args):
     ## IMP, POS가 없다면 IMP, POS AUG 만들기
     seed_everything()
-    datasets = ["stackoverflow"]
-    sample_sizes = [10, 250, 2000]
+    datasets = args.datasets
+    sample_sizes = args.sample_per_class
     for dataset in datasets:
-        mini_df = make_mini_sample(dataset, sample_size = 10)
+        for sample_size in sample_sizes:
+            print(f'----- Making Dataset for {sample_size} Samples Per Class -------')
+            mini_df = make_mini_sample(dataset, sample_size)
+            out_dir1 = f'../dataset/{dataset}/imp_removed_{sample_size}.csv'
+            out_dir2 = f'../dataset/{dataset}/imp_list_{sample_size}.csv'
+            imp_removed = make_important_tokens(mini_df, dataset, out_dir1, out_dir2)
+            imp_tokens = pd.read_csv(out_dir2)['tokens'].tolist()
+            auged_df = important_augmentation(mini_df, imp_tokens)
+            run_pmixup(args, auged_df, dataset, sample_size, feature = "imp")
 
-
-
-    train_df = pd.read_csv("../dataset/stackoverflow/train_noun_aug.csv")
-    dataset = "stackoverflow"
-    feature = "noun"
-    run_pmixup(train_df, dataset, feature)
 
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
+    parser.add_argument("--lr", default = 3e-5)
+    parser.add_argument('--batch_size',  default = 64)
+    parser.add_argument('--max_length',  default = 100)
+    parser.add_argument('--sample_per_class', nargs = "+", default = [10,200,600])
+    parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
+    parser.add_argument('--model_name', default = "bert-base-uncased")
+    parser.add_argument('--num_epochs', default = 1)
+    args = parser.parse_args()
+    main(args)
