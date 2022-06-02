@@ -163,6 +163,7 @@ def run_pos_aug(args,dataset,pos):
     dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
     pos_auged = pos_augmentation(dataframe,pos)
     run_baseline(args, pos_auged, dataset, feature = pos, condition = "auged")
+    return pos_auged
     
 
 
@@ -171,7 +172,7 @@ def main(args):
     for dataset in args.datasets:
         run_imp_aug(args, dataset)
         for pos in args.pos:
-            run_pos_aug(args, dataset,pos)
+            _ = run_pos_aug(args, dataset,pos)
 
 
 

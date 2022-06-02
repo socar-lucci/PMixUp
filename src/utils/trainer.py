@@ -35,8 +35,6 @@ def pmixup_evaluate(model, val_dataloader):
             real_inputs['x'] = inputs['input_ids'].squeeze(1).cuda()
             labels = inputs['labels']
             output = model(**real_inputs)
-            #loss = output['loss']
-            #val_loss += loss.mean().item()
             preds = torch.argmax(output, dim=-1)
             y_pred += preds.cpu()
             y_true += labels.cpu()
@@ -44,9 +42,7 @@ def pmixup_evaluate(model, val_dataloader):
                 total += 1
                 if preds[i] == labels[i]:
                     num_corrects += 1
-    #print(preds)
     val_f1 = f1_score(y_true, y_pred, average = "macro")
-    #print(f"val_loss : {val_loss / len(val_dataloader)}, val_acc : {num_corrects / total}, val_f1 : {val_f1}")
     return val_loss/len(val_dataloader) , (num_corrects/total), val_f1
 
 

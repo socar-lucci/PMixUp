@@ -21,8 +21,7 @@ import argparse
 from pos_in_important import *
 from pos_augmentation import *
 
-def make_mini_sample(dataset,sample_size):
-    train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
+def make_mini_sample(dataframe,sample_size):
     sample_texts, sample_labels = [], []
     for key, values in tqdm(Counter(train_df['label']).items()):
         tmp = [train_df.iloc[i]['text'] for i in range(len(train_df)) if train_df.iloc[i]['label'] == key]
@@ -49,8 +48,15 @@ def main(args):
             out_dir2 = f'../dataset/{dataset}/imp_list_{sample_size}.csv'
             imp_removed = make_important_tokens(mini_df, dataset, out_dir1, out_dir2)
             imp_tokens = pd.read_csv(out_dir2)['tokens'].tolist()
+
             auged_df = important_augmentation(mini_df, imp_tokens)
             run_pmixup(args, auged_df, dataset, sample_size, feature = "imp")
+            for pos in args.pos:
+                pos_aug_df = pos_augmentation(mini_df,pos)
+                run_pmixup(args, pos_aug_df, dataset, sample_size, feature = pos)
+
+
+    ## Evaluation ##
 
     if args.eval == True:
         for dataset in args.datasets:

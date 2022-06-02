@@ -127,7 +127,7 @@ def collate_counts(dataset_list):
 
     output_df = pd.DataFrame(output_dict)
     output_df = output_df.sort_values(by=['counts'], ascending = False)
-    output_df.to_csv("./outputcheck1.csv", index = False) # Code Run Test
+    output_df.to_csv("./table1.csv", index = False) # Code Run Test
                 
 
 
@@ -139,7 +139,6 @@ def main(args):
     for dataset in args.datasets:
         dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
         run_baseline(args, dataframe, dataset, feature=None, condition = None)
-        #run_baseline(dataframe, dataset, feature = None, lr = args.lr, condition = None)
         out_dir1, out_dir2 = f'../dataset/{dataset}/imp_removed.csv', f'../dataset/{dataset}/imp_list.csv'
         make_important_tokens(dataframe, dataset, out_dir1, out_dir2)
     collate_counts(args.datasets)
