@@ -13,7 +13,8 @@ import random
 import numpy as np
 from glob import glob
 from utils.dataloader import TextDataset, get_label_dict
-from utils.utils import get_baseline_optimizer
+from utils.utils import get_baseline_optimizer, seed_everything
+from utils.trainer import run_baseline
 import nltk
 from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
@@ -24,48 +25,6 @@ nltk.download('universal_tagset')
 
 
 
-
-def seed_everything(seed: int = 42):
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministric = True
-    torch.backends.cudnn.benchmark = True
-
-
-def run_baseline(train_df, dataset_name, text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
-    device = torch.device("cuda" if torch.cuda.is_available() else cpu )
-    lr = 4e-5
-    max_length = 100
-    batch_size = 124
-
-    label_dict = get_label_dict(train_df, label_column)
-    train_dataset = TextDataset(train_df, label_dict, text_column, label_column, max_length)
-    train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
-    model = BertForSequenceClassification.from_pretrained(model_name, num_labels = len(label_dict))
-    model = torch.nn.DataParallel(model).to(device)
-    optimizer = get_baseline_optimizer(model, lr)
-    scaler = torch.cuda.amp.GradScaler()
-    for epoch in range(num_epochs):
-        model.train()
-        model.zero_grad()
-        epoch_loss = 0
-        for i, batch in enumerate(tqdm(train_dataloader)):
-            batch['input_ids'] = batch['input_ids'].squeeze(1)
-            with torch.cuda.amp.autocast():
-                output = model(**batch)
-                loss = output['loss']        
-            epoch_loss += loss.mean().item()
-            scaler.scale(loss.mean()).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            model.zero_grad()
-    
-    if not os.path.exists('../model_weights'):
-        os.mkdir("../model_weights/")
-    torch.save(model, f'../model_weights/model_{dataset_name}_baseline.pt')
 
 
 def load_model(model_path = "../model_weights/model_stackoverflow_baseline.pt"):
@@ -89,8 +48,7 @@ def make_important_tokens(train_df, project_name, out_dir1, out_dir2, text_colum
 
     device = torch.device("cuda")
     model = model.to(device)
-    for ex in tqdm(range(100)):
-    #for ex in tqdm(range(len(train_df))):
+    for ex in tqdm(range(len(train_df))):
         text = train_df[text_column][ex]
         label = train_df[label_column][ex]
         label_ind = label_dict[label]
@@ -118,7 +76,7 @@ def make_important_tokens(train_df, project_name, out_dir1, out_dir2, text_colum
 
         important_tokens.append(significance[0][2])
     important_df = pd.DataFrame(
-        {text_column: all_sig, label_column: train_df[label_column][:100]}
+        {text_column: all_sig, label_column: train_df[label_column]}
     )
     important_token_list = pd.DataFrame({"tokens": important_tokens})
     important_df.to_csv(out_dir1, index=False)
@@ -188,6 +146,7 @@ def collate_counts(dataset_list):
 def main():
     seed_everything()
     train_df = pd.read_csv("../dataset/stackoverflow/train.csv")
+    run_baseline(train_df, "stackoverflow", feature = None, lr = 4e-5, condition = None)
     #run_baseline(train_df, "stackoverflow")
     out_dir1, out_dir2 = '../dataset/stackoverflow/imp_removed.csv', '../dataset/stackoverflow/imp_list.csv'
     project_name = "stackoverflow"

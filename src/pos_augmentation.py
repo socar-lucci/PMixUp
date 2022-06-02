@@ -19,6 +19,7 @@ from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
 from utils.dataloader import *
 from utils.utils import *
+from utils.trainer import run_baseline
 nltk.download("omw-1.4")
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -62,7 +63,7 @@ def important_augmentation(train_df, imp_tokens):
     for word in imp_tokens:
         if word not in syn_dict:
             syn_dict[word] = []
-        syns, cnt = synonym_count(word)
+        syns, cnt = synonym_count(str(word))
         if cnt == 0:
             if "#" not in word and word.isalpha():
                 nope.append(word)
@@ -76,14 +77,14 @@ def important_augmentation(train_df, imp_tokens):
         new_text, new_label = [], []
         
         data = train_df.iloc[ind]
-        text, label = data['text'].lower(), data['label']
+        text, label = str(data['text']).lower(), data['label']
         splitted_text = text.split()
         imp_tok = imp_tokens[ind]
         if imp_tok in yess:
             synss = list(set(syn_dict[imp_tok]))
             for syn in synss[:2]:
                 tmp_text = text
-                nt = tmp_text.replace(imp_tok, syn)
+                nt = tmp_text.replace(str(imp_tok), str(syn))
                 new_text.append(nt)
                 new_label.append(label)
         if len(new_text) < 2:
@@ -97,6 +98,8 @@ def important_augmentation(train_df, imp_tokens):
         auged_label += new_label
     auged_df = pd.DataFrame({"text": auged_text, "label": auged_label})
     auged_df.to_csv("../dataset/stackoverflow/imp_auged_train.csv", index= False)
+
+    return auged_df
             
 
 def make_mini_sample(train_df, dataset,sample_size):
@@ -152,69 +155,34 @@ def pos_augmentation(train_df, pos):
 
         ni_aug += new_text
         ni_lab += new_label
-    pos_removed = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
+    pos_auged = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
             
-    pos_removed = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
-    pos_removed.to_csv(f"../dataset/stackoverflow/train_{pos}_aug.csv", index=False)
+    pos_auged = pd.DataFrame({"text": ni_aug, "label" : ni_lab})
+    pos_auged.to_csv(f"../dataset/stackoverflow/train_{pos}_aug.csv", index=False)
+    return pos_auged
 
 
-def run_baseline(train_df, dataset_name, pos, text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
-    device = torch.device("cuda" if torch.cuda.is_available() else cpu )
-    lr = 4e-5
-    max_length = 100
-    batch_size = 124
+def run_imp_aug(dataset):
+    dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
+    imp_list = pd.read_csv(f"../dataset/{dataset}/imp_list.csv")['tokens'].tolist()
+    auged_df = important_augmentation(dataframe, imp_list)
+    run_baseline(auged_df, dataset, feature = "imp", lr = 4e-5, condition = "auged")
 
-    label_dict = get_label_dict(train_df, label_column)
-    train_dataset = TextDataset(train_df, label_dict, text_column, label_column, max_length)
-    train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
-    model = BertForSequenceClassification.from_pretrained(model_name, num_labels = len(label_dict))
-    model = torch.nn.DataParallel(model).to(device)
-    optimizer = get_baseline_optimizer(model, lr)
-    scaler = torch.cuda.amp.GradScaler()
-    for epoch in range(num_epochs):
-        model.train()
-        model.zero_grad()
-        epoch_loss = 0
-        for i, batch in enumerate(tqdm(train_dataloader)):
-            batch['input_ids'] = batch['input_ids'].squeeze(1)
-            with torch.cuda.amp.autocast():
-                output = model(**batch)
-                loss = output['loss']        
-            epoch_loss += loss.mean().item()
-            scaler.scale(loss.mean()).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            model.zero_grad()
+
+def run_pos_aug(dataset,pos):
+    dataframe = pd.read_csv(f"../dataset/{dataset}/train.csv")
+    pos_auged = pos_augmentation(dataframe,pos)
+    run_baseline(pos_auged, dataset, feature = pos, lr = 4e-5, condition = "auged")
     
-    if not os.path.exists('../model_weights'):
-        os.mkdir("../model_weights/")
-    torch.save(model, f'../model_weights/model_{dataset_name}_{pos}.pt')
-
-
-
-
-
 
 
 def main():
-    train_df = pd.read_csv("../dataset/stackoverflow/train.csv")[:100]
-    imp_list = pd.read_csv("../dataset/stackoverflow/imp_list.csv")['tokens'].tolist()
-    important_augmentation(train_df, imp_list)
-    imp_df = pd.read_csv("../dataset/stackoverflow/imp_auged_train.csv")
-    run_baseline(imp_df, "stackoverflow", "imp")
-    #run_baseline()
+    dataset = "stackoverflow"
+    seed_everything()
+    run_imp_aug(dataset)
     for pos in ["verb", "noun", "adj"]:
-        pos_augmentation(train_df, pos)
-    #run_baseline()
+        run_pos_aug(dataset, pos)
 
-    #make_mini_sample(train_df, "stackoverflow",10)
-    #for files in [10]:
-    #    df = pd.read_csv(f"../dataset/stackoverflow/train_{files}.csv")
-    #    important_augmentation(train_df)
-    #    pos_augmentation()
-    #    run_baseline(important_aug_file)
-    #    for pos in ["n", "v", "adj"]:
-    #        run_baseline(pos_aug)
 
 
 

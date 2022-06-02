@@ -14,16 +14,7 @@ import random
 import numpy as np
 from glob import glob
 from transformers import AutoTokenizer
-
-
-def seed_everything(seed: int = 42):
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministric = True
-    torch.backends.cudnn.benchmark = True
+from utils.utils import seed_everything
 
 
 def tmix(train_df, text_column,label_name,dataset,model_name="bert-base-uncased",num_epochs=30,save=True,syntax=False,):

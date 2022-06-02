@@ -15,6 +15,16 @@ import numpy as np
 from glob import glob
 
 
+def seed_everything(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministric = True
+    torch.backends.cudnn.benchmark = True
+
+
 
 def get_baseline_optimizer(model, lr = 4e-5):
     no_decay = ["bias", "LayerNorm.weight"]
