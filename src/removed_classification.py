@@ -15,7 +15,7 @@ import numpy as np
 from glob import glob
 from utils.dataloader import TextDataset, get_label_dict
 from utils.utils import get_baseline_optimizer
-from utils.trainer import run_baseline
+from utils.trainer import run_baseline, baseline_evaluate
 import nltk
 from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
@@ -83,6 +83,7 @@ def remove_important(dataset):
 
 
 def main(args):
+
     print(f'----- Start Training -----')
     for dataset in args.datasets:
         train_df = pd.read_csv(f"../dataset/{dataset}/train.csv")
@@ -96,13 +97,21 @@ def main(args):
     if args.eval == True:
         for dataset in args.datasets:
             for pos in args.pos:
-                model = f'../model_weights/{dataset}/model_{pos}_removed.pt'
+                model = torch.load(f'../model_weights/{dataset}/model_{pos}_removed.pt')
                 
+                val_dataframe = pd.read_csv("../dataset/stackoverflow/test.csv")
+                label_dict = get_label_dict(val_dataframe, 'label')
+                val_dataset = TextDataset(val_dataframe, label_dict, "text", "label",args.max_length)
+                val_dataloader = DataLoader(val_dataset, batch_size = args.batch_size, shuffle = False)
+                
+                _, val_acc, _ = baseline_evaluate(model, val_dataloader)
+                print(val_acc)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
+    parser.add_argument("--datasets", nargs="+", default = ["stackoverflow"])
+    #parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
     parser.add_argument("--model_name", default = "bert-base-uncased")
     parser.add_argument("--num_epochs", default = 1)
     parser.add_argument("--lr", default = 4e-5)

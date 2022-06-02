@@ -18,6 +18,70 @@ import torch.nn.functional as F
 from models.tmix import *
 
 
+def pmixup_evaluate(model, val_dataloader):
+    total = 0
+    num_corrects = 0
+    val_loss = 0
+    y_pred = []
+    y_true = []
+    with torch.no_grad():
+        model.eval()
+        print("------Evaluation------")
+        for step, batch in enumerate(tqdm(val_dataloader)):
+            inputs = batch
+            inputs['input_ids'] = inputs['input_ids'].squeeze(1)
+
+            real_inputs = {}
+            real_inputs['x'] = inputs['input_ids'].squeeze(1).cuda()
+            labels = inputs['labels']
+            output = model(**real_inputs)
+            #loss = output['loss']
+            #val_loss += loss.mean().item()
+            preds = torch.argmax(output, dim=-1)
+            y_pred += preds.cpu()
+            y_true += labels.cpu()
+            for i in range(len(preds)):
+                total += 1
+                if preds[i] == labels[i]:
+                    num_corrects += 1
+    #print(preds)
+    val_f1 = f1_score(y_true, y_pred, average = "macro")
+    #print(f"val_loss : {val_loss / len(val_dataloader)}, val_acc : {num_corrects / total}, val_f1 : {val_f1}")
+    return val_loss/len(val_dataloader) , (num_corrects/total), val_f1
+
+
+
+
+def baseline_evaluate(model, val_dataloader):
+    total = 0
+    num_corrects = 0
+    val_loss = 0
+    y_pred = []
+    y_true = []
+    with torch.no_grad():
+        model.eval()
+        print("------Evaluation------")
+        for step, batch in enumerate(tqdm(val_dataloader)):
+            inputs = batch
+            inputs['input_ids'] = inputs['input_ids'].squeeze(1)
+            labels = inputs['labels']
+            output = model(**inputs)
+            preds = torch.argmax(output.logits, dim=-1)
+            y_pred += preds.cpu()
+            y_true += labels.cpu()
+            for i in range(len(preds)):
+                total += 1
+                if preds[i] == labels[i]:
+                    num_corrects += 1
+
+    val_f1 = f1_score(y_true, y_pred, average = "macro")
+    return val_loss/len(val_dataloader) , (num_corrects/total), val_f1
+
+
+
+
+
+
 def run_baseline(args, dataframe, dataset_name, feature, condition = None, text_column='text', label_column='label'):
     device = torch.device("cuda" if torch.cuda.is_available() else cpu )
     label_dict = get_label_dict(dataframe, label_column)
@@ -56,12 +120,9 @@ def run_baseline(args, dataframe, dataset_name, feature, condition = None, text_
 def run_pmixup(args, train_df, dataset, sample_size, feature, text_column="text", label_column="label"):
     device = torch.device("cuda" if torch.cuda.is_available() else cpu )
     label_dict = get_label_dict(train_df, label_column)
-
     train_dataset = TextDataset(train_df, label_dict, text_column, label_column, args.max_length)
     train_dataloader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, drop_last = True)
-    
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-
+    #tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     model = MixText(num_labels = len(label_dict), mix_option = True).cuda()
     model = nn.DataParallel(model)
 

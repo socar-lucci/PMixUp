@@ -20,7 +20,7 @@ from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
 from utils.dataloader import *
 from utils.utils import *
-from utils.trainer import run_baseline
+from utils.trainer import run_baseline, baseline_evaluate
 nltk.download("omw-1.4")
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -175,6 +175,19 @@ def main(args):
 
 
 
+    print(f'----- Start Evaluation -----')
+    if args.eval == True:
+        for dataset in args.datasets:
+            for pos in args.pos:
+                model = torch.load(f'../model_weights/{dataset}/model_{pos}_auged.pt')
+                val_dataframe = pd.read_csv(f"../dataset/{dataset}/test.csv")
+                label_dict = get_label_dict(val_dataframe, 'label')
+                val_dataset = TextDataset(val_dataframe, label_dict, "text", "label",args.max_length)
+                val_dataloader = DataLoader(val_dataset, batch_size = args.batch_size, shuffle = False)
+                _, val_acc, _ = baseline_evaluate(model, val_dataloader)
+                print(val_acc)
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -185,5 +198,6 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size',  default = 128)
     parser.add_argument('--max_length',  default = 100)
     parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
+    parser.add_argument('--eval', default = True)
     args = parser.parse_args()
     main(args)

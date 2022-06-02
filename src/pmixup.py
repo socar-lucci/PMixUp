@@ -37,10 +37,10 @@ def make_mini_sample(dataset,sample_size):
 
 
 def main(args):
-    ## IMP, POS가 없다면 IMP, POS AUG 만들기
     seed_everything()
     datasets = args.datasets
     sample_sizes = args.sample_per_class
+
     for dataset in datasets:
         for sample_size in sample_sizes:
             print(f'----- Making Dataset for {sample_size} Samples Per Class -------')
@@ -52,6 +52,17 @@ def main(args):
             auged_df = important_augmentation(mini_df, imp_tokens)
             run_pmixup(args, auged_df, dataset, sample_size, feature = "imp")
 
+    if args.eval == True:
+        for dataset in args.datasets:
+            for pos in args.pos:
+                for sample_size in args.sample_per_class:
+                    model = torch.load(f'../model_weights/{dataset}/model_{pos}_{sample_size}.pt')
+                    val_dataframe = pd.read_csv(f"../dataset/{dataset}/test.csv")
+                    label_dict = get_label_dict(val_dataframe, 'label')
+                    val_dataset = TextDataset(val_dataframe, label_dict, "text", "label",args.max_length)
+                    val_dataloader = DataLoader(val_dataset, batch_size = args.batch_size, shuffle = False)
+                    _, val_acc, _ = pmixup_evaluate(model, val_dataloader)
+                    print(val_acc)
 
 
 
@@ -65,5 +76,6 @@ if __name__ == "__main__":
     parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
     parser.add_argument('--model_name', default = "bert-base-uncased")
     parser.add_argument('--num_epochs', default = 1)
+    parser.add_argument('--eval', default = True)
     args = parser.parse_args()
     main(args)
