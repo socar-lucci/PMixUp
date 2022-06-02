@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--datasets", nargs="+", default = ["agnews","dbpedia","stackoverflow","banking","r8","ohsumed","amazon","yelp","imdb"])
     parser.add_argument("--model_name", default = "bert-base-uncased")
-    parser.add_argument("--num_epochs", default = 1)
+    parser.add_argument("--num_epochs", default = 20)
     parser.add_argument("--lr", default = 4e-5)
     parser.add_argument('--batch_size',  default = 128)
     parser.add_argument('--max_length',  default = 100)

@@ -81,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument('--sample_per_class', nargs = "+", default = [10,200,600])
     parser.add_argument('--pos', nargs= "+", default = ["noun", "verb", "adj"])
     parser.add_argument('--model_name', default = "bert-base-uncased")
-    parser.add_argument('--num_epochs', default = 1)
+    parser.add_argument('--num_epochs', default = 20)
     parser.add_argument('--eval', default = True)
     args = parser.parse_args()
     main(args)
