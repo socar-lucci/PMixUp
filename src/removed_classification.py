@@ -42,7 +42,7 @@ def save_pos_file(train_df, pos, pos_removed, text_col, label_col, datapath):
     removed_train.to_csv(os.path.join(out_dir, "train.csv"), index=False)
 
 
-def make_pos_files(train_df, datapath, text_col="text", label_col="label"):
+def make_pos_files(train_df, datapath, pos, text_col="text", label_col="label"):
     pos_list = ["noun", "verb", "adj"]
     removed_nouns, removed_verbs, removed_adjs = [], [], []
     for i in tqdm(range(len(train_df))):
@@ -71,7 +71,7 @@ def make_pos_files(train_df, datapath, text_col="text", label_col="label"):
 
 
 
-def run_baseline(train_df, dataset_name, text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
+def run_baseline(train_df, dataset_name, pos,text_column='text', label_column='label', model_name='bert-base-uncased', num_epochs=1):
     device = torch.device("cuda" if torch.cuda.is_available() else cpu )
     lr = 4e-5
     max_length = 100
@@ -99,17 +99,18 @@ def run_baseline(train_df, dataset_name, text_column='text', label_column='label
             scaler.update()
             model.zero_grad()
     
-    if not os.path.exists('../model_weights'):
-        os.mkdir("../model_weights/")
-    torch.save(model, f'../model_weights/model_{dataset_name}_.pt')
+    if not os.path.exists(f'../model_weights/{dataset_name}'):
+        os.mkdir(f"../model_weights/{dataset_name}")
+    torch.save(model, f'../model_weights/{dataset_name}/model_{pos}_removed.pt')
 
 
 
 def main():
     train_df = pd.read_csv("../dataset/stackoverflow/train.csv")
-    make_pos_files(train_df, "../dataset/stackoverflow")
-    removed = pd.read_csv("../dataset/stackoverflow/POS/noun_removed/train.csv")
-    run_baseline(removed, "stackoverflow")
+    #make_pos_files(train_df, "../dataset/stackoverflow", pos)
+    for pos in ["verb", "noun", "adj"]:
+        removed = pd.read_csv(f"../dataset/stackoverflow/POS/{pos}_removed/train.csv")
+        run_baseline(removed, "stackoverflow",pos)
 
 
 if __name__ == "__main__":
