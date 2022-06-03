@@ -1,0 +1,8 @@
+*.csv
+*.pt
+*.tsv
+*.ipynb_checkpoints
+*.ipynb
+model_weights/*
+*/*/__pycache__
+*/__pychache__
